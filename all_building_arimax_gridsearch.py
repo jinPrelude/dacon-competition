@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
+import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error
 from math import sqrt
 import itertools
@@ -42,7 +43,8 @@ def run_arima_grid_search(train_df, pdq, exog_columns, use_exog):
     now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     if not os.path.exists(f'logs/arimax_param_rsme_log/{now}'):
         os.makedirs(f'logs/arimax_param_rsme_log/{now}')
-        os.makedirs(f'logs/arimax_param_rsme_log/{now}/buildings')
+        os.makedirs(f'logs/arimax_param_rsme_log/{now}/buildings_param')
+        os.makedirs(f'logs/arimax_param_rsme_log/{now}/buildings_plot')
     save_dir = f'logs/arimax_param_rsme_log/{now}'
 
     building_numbers = train_df['건물번호'].unique()
@@ -79,16 +81,27 @@ def run_arima_grid_search(train_df, pdq, exog_columns, use_exog):
                     best_rmse = rmse
                     best_param = param
 
+                    # save train[-168:] as blue, test as green, forecast as orange graph to the folder "logs/arimax_param_rsme_log/{now}/buildings/{num}.png"
+                    fig = plt.figure(figsize=(20, 10))
+                    plt.plot(train['전력소비량(kWh)'][-168:], color='blue', label='train')
+                    plt.plot(test['전력소비량(kWh)'], color='green', label='test')
+                    plt.plot(forecast.predicted_mean, color='orange', label='forecast')
+                    plt.legend()
+                    plt.savefig(f'{save_dir}/buildings_plot/{num}.png')
+                    plt.close(fig)
+
             except Exception as e:
                 print(e)
                 break
 
         # Append results to the dataframe and save
         param_rsme_df = param_rsme_df.sort_values(by=['RMSE'])
-        param_rsme_df.to_csv(f'{save_dir}/buildings/{num}.csv', index=False)
+        param_rsme_df.to_csv(f'{save_dir}/buildings_param/{num}.csv', index=False)
 
         results_df = results_df.append({'건물번호': num, 'Best_Order': best_param, 'Best_RMSE': best_rmse}, ignore_index=True)
         results_df.to_csv(f'{save_dir}/optimized_parameters.csv', index=False)
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='ARIMA grid search for building energy consumption prediction.')

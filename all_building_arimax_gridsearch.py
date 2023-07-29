@@ -8,6 +8,7 @@ import itertools
 import warnings
 import datetime
 from tqdm import tqdm
+import numpy as np
 
 warnings.filterwarnings("ignore")
 
@@ -108,6 +109,9 @@ def run_arima_grid_search(train_df, pdq, exog_options):
 
 
 if __name__ == "__main__":
+    seed = 32839283923801
+    rng = np.random.default_rng(seed)
+
     # define the p, d and q parameters to take any value between 0 and 2
     p = q = range(0, 5) # 0, 1, 2, 3, 4
     d = range(0, 3) # 0, 1, 2

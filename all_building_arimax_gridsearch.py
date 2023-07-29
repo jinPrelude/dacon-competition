@@ -84,7 +84,7 @@ def run_arima_grid_search(train_df, pdq, exog_options):
                 # compute the root mean square error
                 rmse = sqrt(mean_squared_error(test['전력소비량(kWh)'], forecast.predicted_mean))
 
-                param_rsme_df = pd.concat([param_rsme_df, pd.DataFrame({'Parameter': param, 'Exog': exog_columns if exog_columns else None, 'RMSE': rmse}, index=[0])], ignore_index=True)
+                param_rsme_df = pd.concat([param_rsme_df, pd.DataFrame([[param, exog_columns if exog_columns else None, rmse]], columns=['Parameter', 'Exog', 'RMSE'])], ignore_index=True)
 
                 if rmse < best_rmse:
                     best_rmse = rmse
@@ -104,7 +104,7 @@ def run_arima_grid_search(train_df, pdq, exog_options):
         param_rsme_df = param_rsme_df.sort_values(by=['RMSE'])
         param_rsme_df.to_csv(f'{save_dir}/buildings_param/{num}.csv', index=False)
 
-        results_df = pd.concat([results_df, pd.DataFrame({'건물번호': num, 'Best_Order': best_param, 'Best_Exog': best_exog, 'Best_RMSE': best_rmse}, index=[0])], ignore_index=True)
+        results_df = pd.concat([results_df, pd.DataFrame([[num, best_param, best_exog, best_rmse]], columns=['건물번호', 'Best_Order', 'Best_Exog', 'Best_RMSE'])], ignore_index=True)
         results_df.to_csv(f'{save_dir}/optimized_parameters.csv', index=False)
 
 

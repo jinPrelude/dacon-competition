@@ -34,7 +34,6 @@ def preprocess_data(train_df, building_info_df):
 
     # convert date to int(0~6)
     train_df['date'] = train_df['date'].apply(lambda x: x.weekday())
-    print(train_df['date'].unique())
     # concat train_df and building_info_df by building_number
     train_df = pd.merge(train_df, building_info_df, on='건물번호', how='left')
     ec_column = train_df.pop('전력소비량(kWh)')

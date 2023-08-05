@@ -43,9 +43,14 @@ def preprocess_data(train_df, building_info_df):
 
     return train_df
 
+def smape(y_true, y_pred):
+    # convert to numpy array
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return 100/len(y_true) * np.sum(2 * np.abs(y_pred - y_true) / (np.abs(y_true) + np.abs(y_pred)))
+
 def run_arima_grid_search(train_df, pdq, exog_options):
     # Define a dataframe to hold the results
-    results_df = pd.DataFrame(columns=['건물번호', 'Best_Order', 'Best_Exog', 'Best_RMSE'])
+    results_df = pd.DataFrame(columns=['건물번호', 'Best_Order', 'Best_Exog', 'Best_SMAPE'])
 
     # make folder "logs/arimax_param_rsme_log/{now}" to save the log
     now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -57,17 +62,15 @@ def run_arima_grid_search(train_df, pdq, exog_options):
 
     building_numbers = train_df['건물번호'].unique()
     for num in tqdm(building_numbers, desc='Building', position=0):
-        # make dataframe to track all the parameters and the corresponding RMSE
-        param_rsme_df = pd.DataFrame(columns=['Parameter', 'Exog', 'RMSE'])
+        param_rsme_smape_df = pd.DataFrame(columns=['Parameter', 'Exog', 'RMSE', 'SMAPE'])
 
         train_df_num = train_df[train_df['건물번호'] == num]
         train_df_num = train_df_num.drop(['건물번호'], axis=1)
 
-        # split train_df into train and test. train: 2022-06-01 ~ 2022-08-17, test: 2022-08-18 ~ 2022-08-24
         train = train_df_num.iloc[:-168, :]
         test = train_df_num.iloc[-168:, :]
 
-        best_rmse = float("inf")
+        best_smape = float("inf")
         best_param = None
         best_exog = None
 
@@ -78,20 +81,18 @@ def run_arima_grid_search(train_df, pdq, exog_options):
                                 )
                 results = model.fit()
 
-                # get the forecast
                 forecast = results.get_forecast(steps=168, exog=(test[exog_columns] if exog_columns else None))
 
-                # compute the root mean square error
                 rmse = sqrt(mean_squared_error(test['전력소비량(kWh)'], forecast.predicted_mean))
+                smape_val = smape(test['전력소비량(kWh)'], forecast.predicted_mean)
 
-                param_rsme_df = pd.concat([param_rsme_df, pd.DataFrame([[param, exog_columns if exog_columns else None, rmse]], columns=['Parameter', 'Exog', 'RMSE'])], ignore_index=True)
+                param_rsme_smape_df = pd.concat([param_rsme_smape_df, pd.DataFrame([[param, exog_columns if exog_columns else None, rmse, smape_val]], columns=['Parameter', 'Exog', 'RMSE', 'SMAPE'])], ignore_index=True)
 
-                if rmse < best_rmse:
-                    best_rmse = rmse
+                if smape_val < best_smape:
+                    best_smape = smape_val
                     best_param = param
                     best_exog = exog_columns
 
-                    # save train[-168:] as blue, test as green, forecast as orange graph to the folder "logs/arimax_param_rsme_log/{now}/buildings/{num}.png"
                     fig = plt.figure(figsize=(20, 10))
                     plt.plot(train['전력소비량(kWh)'][-168:], color='blue', label='train')
                     plt.plot(test['전력소비량(kWh)'], color='green', label='test')
@@ -100,11 +101,10 @@ def run_arima_grid_search(train_df, pdq, exog_options):
                     plt.savefig(f'{save_dir}/buildings_plot/{num}.png')
                     plt.close(fig)
 
-        # Append results to the dataframe and save
-        param_rsme_df = param_rsme_df.sort_values(by=['RMSE'])
-        param_rsme_df.to_csv(f'{save_dir}/buildings_param/{num}.csv', index=False)
+        param_rsme_smape_df = param_rsme_smape_df.sort_values(by=['SMAPE'])
+        param_rsme_smape_df.to_csv(f'{save_dir}/buildings_param/{num}.csv', index=False)
 
-        results_df = pd.concat([results_df, pd.DataFrame([[num, best_param, best_exog, best_rmse]], columns=['건물번호', 'Best_Order', 'Best_Exog', 'Best_RMSE'])], ignore_index=True)
+        results_df = pd.concat([results_df, pd.DataFrame([[num, best_param, best_exog, best_smape]], columns=['건물번호', 'Best_Order', 'Best_Exog', 'Best_SMAPE'])], ignore_index=True)
         results_df.to_csv(f'{save_dir}/optimized_parameters.csv', index=False)
 
 
@@ -113,13 +113,15 @@ if __name__ == "__main__":
     rng = np.random.default_rng(seed)
 
     # define the p, d and q parameters to take any value between 0 and 2
-    p = q = range(0, 5) # 0, 1, 2, 3, 4
-    d = range(0, 3) # 0, 1, 2
+    p = q = range(1, 5) # 0, 1, 2, 3, 4
+    d = range(0, 2) # 0, 1
 
     # generate all different combinations of p, d and q triplets
     pdq = [(x[0], x[1], x[2]) for x in list(itertools.product(p, d, q))]
 
-    exog_options = [[], ['기온(C)', '습도(%)'], ['기온(C)', '습도(%)', 'month', 'day', 'date', 'hour']]
+    # exog_options = [[], ['기온(C)', '습도(%)'], ['기온(C)', '습도(%)', 'month', 'day', 'date', 'hour']]
+    # exog_options = [[]]
+    exog_options = [['기온(C)', '습도(%)', 'date', 'hour']]
 
     train_df, building_info_df = load_data()
     train_df = preprocess_data(train_df, building_info_df)
